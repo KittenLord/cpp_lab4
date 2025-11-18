@@ -7,6 +7,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#include "protocol.cpp"
+
 #define null ((void *)0)
 
 #define PORT 6969
@@ -61,10 +63,58 @@ int main(void) {
 
         printf("CLIENT CONNECTED\n");
 
-        char buffer[512] = {0};
-        read(clientSock, buffer, 512);
+        // NOTE: guaranteed to be able to hold all 3 headers
+        union PacketMax headerBuffer;
 
-        printf("MESSAGE: %s\n", buffer);
+        PacketMode packetMode;
+        read(clientSock, &packetMode, sizeof(packetMode));
+
+        switch(packetMode) {
+            case PACKET_1:
+                {
+                    printf("Received message from Client 1\n");
+
+                    read(clientSock, ((uint8_t *)&headerBuffer) + sizeof(PacketMode), sizeof(struct Packet1) - sizeof(PacketMode));
+                    struct Packet1 p = headerBuffer.p1;
+
+                    printf("Client's RAM size: %d\n", p.ramSize);
+                    printf("Client's external drive availability: %d\n", p.diskAvailable);
+                    printf("Client's screen width: %d\n", p.screenWidth);
+                }
+                break;
+            case PACKET_2:
+                {
+                    printf("Received message from Client 2\n");
+
+                    read(clientSock, ((uint8_t *)&headerBuffer) + sizeof(PacketMode), sizeof(struct Packet2) - sizeof(PacketMode));
+                    struct Packet2 p = headerBuffer.p2;
+
+                    printf("Client's line height: %d\n", p.lineHeight);
+                    printf("Client's notification panel width: %d\n", p.notifWidth);
+                    printf("Client's horizontal DPI: %d\n", p.dpiHorizontal);
+                }
+                break;
+            case PACKET_3:
+                {
+                    printf("Received message from Client 3\n");
+
+                    read(clientSock, ((uint8_t *)&headerBuffer) + sizeof(PacketMode), sizeof(struct Packet3) - sizeof(PacketMode));
+                    struct Packet3 p = headerBuffer.p3;
+
+                    char *buffer = (char *)calloc(sizeof(char), p.length);
+                    read(clientSock, buffer, p.length);
+
+                    printf("Client's message: %s\n", buffer);
+
+                    free(buffer);
+                }
+                break;
+            default:
+                printf("INVALID PACKET TYPE: %d\n", packetMode);
+                break;
+        }
+
+        close(clientSock);
     }
 
     close(sock);
